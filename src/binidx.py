@@ -199,7 +199,6 @@ class MMapIndexedDataset:
     def exists(path: str) -> bool:
         return os.path.exists(index_file_path(path)) and os.path.exists(data_file_path(path))
 
-# Example usage
 if __name__ == "__main__":
     import tempfile
     import shutil
@@ -234,10 +233,5 @@ if __name__ == "__main__":
         print(f"Slice [1:3]: {dataset[1:3]}")
         print(f"Document index: {dataset.doc_idx}")
 
-        # Demonstrate compatibility with JAX
-        import jax.numpy as jnp
-        jax_array = jnp.array(dataset[0])
-        print(f"JAX array: {jax_array}")
-
-        # Clean up
+    
         shutil.rmtree(tmpdir)

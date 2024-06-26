@@ -97,20 +97,16 @@ class RWKVTokenizer:
     def decode_numpy(self, tokens: np.ndarray) -> List[str]:
         return self.decode(tokens.tolist())
 
-# Example usage
 if __name__ == "__main__":
     tokenizer = RWKVTokenizer("/home/sarangangster/Desktop/rwkv_jax/rwkv_vocab_v20230424.txt")
     
-    # Test encoding
     text = ["Hello, world!", "This is a test."]
     encoded = tokenizer.encode(text)
     print("Encoded:", encoded)
 
-    # Test decoding
     decoded = tokenizer.decode(encoded)
     print("Decoded:", decoded)
 
-    # Test numpy versions
     encoded_np = tokenizer.encode_numpy(text)
     print("Encoded (NumPy):", encoded_np)
     

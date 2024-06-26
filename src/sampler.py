@@ -26,7 +26,6 @@ def sample_logits(logits: jnp.ndarray, temperature: float = 1.0, top_p: float = 
         logits = logits / temperature
 
     sorted_logits = jnp.sort(logits, axis=-1)[:, ::-1]
-    sorted_indices = jnp.argsort(logits, axis=-1)[:, ::-1]
     cumulative_probs = jnp.cumsum(jax.nn.softmax(sorted_logits, axis=-1), axis=-1)
     
     cutoff = jnp.take_along_axis(sorted_logits, jnp.argmax(cumulative_probs > top_p, axis=-1, keepdims=True), axis=-1)
@@ -118,7 +117,6 @@ def generate_tokens(model: Any,
 
     return final_tokens, final_state
 
-# Example usage
 if __name__ == "__main__":
     from model import create_model, model_forward
 
@@ -137,21 +135,16 @@ if __name__ == "__main__":
 
     model, params = create_model(config)
     
-    # Initialize tokenizer
     tokenizer = RWKVTokenizer("/home/sarangangster/Desktop/rwkv_jax/rwkv_vocab_v20230424.txt")
 
-    # Prepare input text
     input_text = "Once upon a time,"
     num_tokens_to_generate = 20
 
-    # Encode input text
     encoded_input = tokenizer.encode_numpy(input_text)
     initial_tokens = jnp.array(encoded_input[0], dtype=jnp.int32)
 
-    # Initialize state
     initial_state = model.init_state(config)(1)
 
-    # Generate tokens
     generated_tokens, final_state = generate_tokens(
         model, 
         params, 
@@ -163,7 +156,6 @@ if __name__ == "__main__":
         initial_state=initial_state
     )
 
-    # Decode generated tokens
     decoded_text = tokenizer.decode_numpy(generated_tokens.reshape(1, -1))[0]
 
     print("Input text:", input_text)

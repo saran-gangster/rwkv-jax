@@ -1,9 +1,8 @@
 import os
-import jax
 import jax.numpy as jnp
 import numpy as np
 import pickle
-from src.model import RWKV, model_forward
+from src.model import RWKV
 from src.tokenizer import RWKVTokenizer
 from src.sampler import generate_tokens
 from train import load_checkpoint

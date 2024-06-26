@@ -21,7 +21,7 @@ class GroupNorm(nn.Module):
         return self.param('scale', nn.initializers.ones, (channels,)) * x + self.param('bias', nn.initializers.zeros, (channels,))
 
 class RWKVBlock(nn.Module):
-    """Represents a single block in the RWKV model."""
+    """Block of RWKV model."""
     config: Dict[str, Any]
     layer_id: int
 
@@ -169,7 +169,7 @@ class RWKVBlock(nn.Module):
 
 @nn.compact
 class RWKV(nn.Module):
-    """Represents the full RWKV model."""
+    """Full RWKV model."""
     vocab_size: int
     n_layer: int
     n_embd: int
@@ -297,7 +297,7 @@ if __name__ == "__main__":
     print(f"New state shape: {new_state.shape}")
 
     # Parallel processing example
-    parallel_input_ids = jnp.array([[1, 2, 3, 4, 5]])  # Longer sequence
+    parallel_input_ids = jnp.array([[1, 2, 3, 4, 5]]) 
     parallel_output, parallel_new_state = model_forward_parallel(model, params, parallel_input_ids, state)
 
     print("\nParallel processing:")

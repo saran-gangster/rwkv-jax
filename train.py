@@ -2,24 +2,20 @@ import os
 import re
 import jax
 import jax.numpy as jnp
-from jax import random, pmap, local_device_count, jit, tree_util
 import optax
 from flax.training import train_state
-from flax.training import checkpoints
-from functools import partial
 import numpy as np
 from tqdm import tqdm
 import pickle
-import time
-from src.model import create_model, RWKV, model_forward
+# import time
+from src.model import create_model, RWKV
 from src.tokenizer import RWKVTokenizer
 from src.binidx import MMapIndexedDataset
 
-# Configurations
 MODEL_PATH = './weight/RWKV-x060.pkl'
 TOKENIZER_PATH = "rwkv_vocab_v20230424.txt"
 DATA_PATH = 'data/minipile'
-SAVE_PATH = os.path.abspath("rwkv-pretrain-checkpoint")  # Make this an absolute path
+SAVE_PATH = os.path.abspath("rwkv-pretrain-checkpoint") 
 
 config = {
     'vocab_size': 65536,
@@ -34,14 +30,13 @@ config = {
     'layer_norm_epsilon': 1e-5,
 }
 
-# Training hyperparameters
 LEARNING_RATE = 1e-4
 BATCH_SIZE = 32
 SEQ_LEN = 10
 EPOCHS = 10
-SAVE_EVERY = 1000  # Save checkpoint every 1000 steps
+SAVE_EVERY = 1000 
+global_step = 0
 
-# Multi-GPU setup
 devices = jax.devices()
 num_devices = len(devices)
 print(f"Number of devices: {num_devices}")
@@ -49,10 +44,8 @@ print(f"Number of devices: {num_devices}")
 BATCH_SIZE_PER_DEVICE = BATCH_SIZE // num_devices
 assert BATCH_SIZE % num_devices == 0, f"Batch size must be divisible by the number of devices. Got {BATCH_SIZE} and {num_devices} devices."
 
-# Initialize tokenizer
 tokenizer = RWKVTokenizer(TOKENIZER_PATH)
 
-# Load or create model
 def init_or_load_model(config, model_path):
     if os.path.exists(model_path):
         print(f"Loading model from {model_path}")
@@ -83,10 +76,8 @@ def save_checkpoint(train_state, step, save_dir):
     os.makedirs(save_dir, exist_ok=True)
     checkpoint_file = os.path.join(save_dir, "checkpoint")
     
-    # Extract the raw parameters from the TrainState
     raw_params = jax.device_get(train_state.params)
 
-    # Create the checkpoint dictionary
     checkpoint = {
         'params': raw_params,
         'step': step
@@ -121,16 +112,16 @@ def extract_step(checkpoint_name):
     match = re.search(r'checkpoint_(\d+)', checkpoint_name)
     return int(match.group(1)) if match else 0
 
-# Load dataset
+
 dataset = MMapIndexedDataset(DATA_PATH)
 
-# Padding function
+
 def pad_sequences(sequences, max_len, pad_value=0):
     padded = []
     for seq in sequences:
-        if isinstance(seq, list):  # If seq is a list of arrays
+        if isinstance(seq, list):  
             flat_seq = np.concatenate([arr for arr in seq if len(arr) > 0])
-        else:  # If seq is already a flat array
+        else:  
             flat_seq = seq
         if len(flat_seq) > max_len:
             padded.append(flat_seq[:max_len])
@@ -138,7 +129,6 @@ def pad_sequences(sequences, max_len, pad_value=0):
             padded.append(np.pad(flat_seq, (0, max_len - len(flat_seq)), constant_values=pad_value))
     return np.array(padded, dtype=np.int32)
 
-# Create mask for valid tokens
 def create_mask(padded_sequences, max_len):
     return np.array([[1 if i < np.sum(seq != 0) else 0 for i in range(max_len)] for seq in padded_sequences])
 
@@ -170,28 +160,25 @@ def train():
             with open(checkpoint_file, 'rb') as f:
                 loaded_state = pickle.load(f)
             train_state = create_train_state(loaded_state['params'], LEARNING_RATE)
-            start_step = loaded_state['step']
+            global_step = loaded_state['step']
         else:
             print(f"Checkpoint file not found: {checkpoint_file}")
             print("Starting from scratch.")
             train_state = create_train_state(params, LEARNING_RATE)
-            start_step = 0
+            global_step = 0
     else:
         print("No checkpoint found. Starting from scratch.")
         train_state = create_train_state(params, LEARNING_RATE)
-        start_step = 0
+        global_step = 0
     
-    # Replicate the train state for each device
     train_state = jax.device_put_replicated(train_state, devices)
     
     print("Training state initialized.")
 
-    # Prepare dummy data for compilation
     dummy_batch = jnp.ones((num_devices, BATCH_SIZE_PER_DEVICE, SEQ_LEN), dtype=jnp.int32)
     dummy_mask = jnp.ones((num_devices, BATCH_SIZE_PER_DEVICE, SEQ_LEN), dtype=jnp.int32)
     dummy_init_state = jnp.zeros((num_devices, BATCH_SIZE_PER_DEVICE, config['n_layer'], config['n_head'], config['head_size_a'], config['head_size_a']))
 
-    # Compile the training step
     print("Compiling training step...")
     train_step(train_state, dummy_batch, dummy_mask, dummy_init_state)
     print("Compilation done.")
@@ -200,59 +187,49 @@ def train():
 
     for epoch in range(EPOCHS):
         total_steps = len(dataset) // (BATCH_SIZE * SEQ_LEN)
-        with tqdm(total=total_steps, initial=start_step, desc=f"Epoch {epoch+1}/{EPOCHS}") as pbar:
-            for step in range(start_step, total_steps):
+        with tqdm(total=total_steps, desc=f"Epoch {epoch+1}/{EPOCHS}") as pbar:
+            for step in range(total_steps):
                 rng = jax.random.PRNGKey(epoch * total_steps + step)
 
-                # Sample a batch
                 idxs = jax.random.randint(rng, (BATCH_SIZE,), 0, len(dataset) - SEQ_LEN)
                 sequences = [dataset[idx:idx+SEQ_LEN] for idx in idxs]
 
-                # Pad sequences and create mask
                 padded_sequences = pad_sequences(sequences, SEQ_LEN)
                 mask = create_mask(padded_sequences, SEQ_LEN)
 
-                # Reshape for multiple devices
                 padded_sequences = padded_sequences.reshape(num_devices, BATCH_SIZE_PER_DEVICE, SEQ_LEN)
                 mask = mask.reshape(num_devices, BATCH_SIZE_PER_DEVICE, SEQ_LEN)
 
-                # Convert to jax arrays
                 padded_sequences = jnp.array(padded_sequences)
                 mask = jnp.array(mask)
 
-                # Initialize state
                 init_state = RWKV.init_state(config)(BATCH_SIZE)
                 init_state = init_state.reshape(num_devices, BATCH_SIZE_PER_DEVICE, config['n_layer'], config['n_head'], config['head_size_a'], config['head_size_a'])
 
-                # Perform training step
                 train_state, loss = train_step(train_state, padded_sequences, mask, init_state)
 
+                global_step += 1
                 pbar.update(1)
 
-                if (step + 1) % 100 == 0:
+                if global_step % 100 == 0:
                     loss = jax.device_get(loss)
-                    print(f"Step {step+1}, Loss: {loss.mean():.4f}")
+                    print(f"Step {global_step}, Loss: {loss.mean():.4f}")
 
-                if (step + 1) % SAVE_EVERY == 0:
-                    save_dir = os.path.join(SAVE_PATH, f"checkpoint_{step + 1}")
+                if global_step % SAVE_EVERY == 0:
+                    save_dir = os.path.join(SAVE_PATH, f"checkpoint_{global_step}")
                     os.makedirs(save_dir, exist_ok=True)
-                    # Gather params from all devices and save only one copy
                     flat_params = jax.tree_util.tree_map(lambda x: x[0], jax.device_get(train_state.params))
                     checkpoint_file = os.path.join(save_dir, "checkpoint")
                     with open(checkpoint_file, 'wb') as f:
-                        pickle.dump({'params': flat_params, 'step': step + 1}, f)
+                        pickle.dump({'params': flat_params, 'step': global_step}, f)
 
-        # Reset start_step after first epoch
-        start_step = 0
 
-    # Save final model
     final_save_dir = os.path.join(SAVE_PATH, "checkpoint_final")
     os.makedirs(final_save_dir, exist_ok=True)
     flat_params = jax.tree_map(lambda x: x.reshape(-1, *x.shape[2:]) if x.ndim > 2 else x, jax.device_get(train_state.params))
     final_checkpoint_file = os.path.join(final_save_dir, "checkpoint")
     with open(final_checkpoint_file, 'wb') as f:
-        pickle.dump({'params': flat_params, 'step': total_steps}, f)
-        
-# Run training
+        pickle.dump({'params': flat_params, 'step': global_step}, f)
+
 if __name__ == "__main__":
     train()
