@@ -15,7 +15,7 @@ pip install -r requirements.txt
 
 ### Data Preparation
 
-Head to [json2binidx](https://github.com/saran-gangster/rwkv-jax/json2binidx_tool)
+Head to [json2binidx](https://github.com/saran-gangster/rwkv-jax/tree/main/json2binidx_tool)
 
 Thanks to [Howard-Hou json2binidx_tool](https://github.com/howard-hou/json2binidx_tool/tree/main) (Orginal)
 
