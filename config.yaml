@@ -1,0 +1,38 @@
+# RWKV Model Config
+model:
+  vocab_size: 65529                           # Should be equal to tokenizers vocab size
+  n_layer: 2                                  # As it says
+  n_embd: 128                                 # Embedding dimension and hidden state size
+  dim_att: 128                                # Dimension for attention mechanism (should equal to n_embd)
+  dim_ffn: 512                                # Dimension of ffn in channel mixing
+  head_size_a: 32                             # Base size for attention heads
+  n_head: 4                                   # Number of attention heads (dim_att must be divisible by n_head)
+  head_size_divisor: 8                        # Used in time_faaaa parameter initialization
+  dropout: 0.1                                
+  layer_norm_epsilon: 1.0e-5                  # Epsilon for layer norms to prevent NANs
+  chunk_size: 128                             # Use a larger chunk size for speed. warning may get Nans, increase the min_clamp accordingly          
+  subchunk_size: 64                           # As it says, usually 1/2 * chunk_size
+  min_clamp: null                             # Leave it to null most of the time, by default it's calculated by using 10 ** (-74 / chunk_size), if you get NANs use a higher value than the one you get using the formula
+
+training:
+  initial_learning_rate: 1.0e-5               # Init lr
+  max_learning_rate: 1.0e-3                   # Peak lr
+  warmup_steps: 1000                          # Steps to reach peak lr
+  decay_steps: 10000                          # Steps to decay from max to init lr
+  batch_size: 32                              # Sequences per batch
+  seq_len: 512                                # Ctx length
+  epochs: 5                     
+  grad_clip_norm: 0.5           
+  grad_clip_value: 0.5         
+  label_smoothing: 0.1                        # Factor for smoothing target distributions
+
+checkpoint:
+  save_every_steps: 10000                     # Put zero if you don't want to
+  save_every_epochs: 2                        # Put zero if you don't want to
+  max_checkpoints_to_keep: 2   
+
+paths:
+  model_path: './weight/samplev6.rwkv'        # Make sure this dir exists, otherwise your model won't save
+  tokenizer_path: 'rwkv_vocab_v20230424.txt'  
+  data_path: 'data/minipile'               
+  save_path: 'rwkv_checkpoints'        

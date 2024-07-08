@@ -1,0 +1,6 @@
+jax
+flax
+optax
+orbax
+tqdm
+numpy

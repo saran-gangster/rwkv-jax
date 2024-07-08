@@ -1,5 +1,5 @@
 import numpy as np
-from typing import List, Tuple, Union, Set
+from typing import List, Tuple, Union
 
 class TrieNode:
     def __init__(self, char: str = None):
@@ -56,7 +56,6 @@ class RWKVTokenizer:
             self.token2idx[x] = idx
             self.trie.insert(x, idx)
 
-        # Add special token for end of text
         self.idx2token[0] = b'<|endoftext|>'
         self.token2idx[b'<|endoftext|>'] = 0
 
@@ -72,8 +71,7 @@ class RWKVTokenizer:
             while idx < len(s_bytes):
                 length, token_idx = self.trie.find_longest_prefix(s_bytes[idx:])
                 if token_idx is None:
-                    # If no match found, treat the byte as an unknown token
-                    tokens.append(0)  # You might want to use a specific unknown token ID
+                    tokens.append(0)  
                     idx += 1
                 else:
                     tokens.append(token_idx)
@@ -97,18 +95,3 @@ class RWKVTokenizer:
     def decode_numpy(self, tokens: np.ndarray) -> List[str]:
         return self.decode(tokens.tolist())
 
-if __name__ == "__main__":
-    tokenizer = RWKVTokenizer("/home/sarangangster/Desktop/rwkv_jax/rwkv_vocab_v20230424.txt")
-    
-    text = ["Hello, world!", "This is a test."]
-    encoded = tokenizer.encode(text)
-    print("Encoded:", encoded)
-
-    decoded = tokenizer.decode(encoded)
-    print("Decoded:", decoded)
-
-    encoded_np = tokenizer.encode_numpy(text)
-    print("Encoded (NumPy):", encoded_np)
-    
-    decoded_np = tokenizer.decode_numpy(encoded_np)
-    print("Decoded (NumPy):", decoded_np)
